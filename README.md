@@ -1,0 +1,2 @@
+This project exists to allow anyone to see what the sky would look like given the assumptions of a flat earth model. You can adjust the height of the dome, your location, view from inside or outside, 
+in real time or at high speed. Regardless of the settings, the sky will never match reality. However, it contains what must be true for flat earth to be true with multiple sky observers at the same time.
