@@ -83,10 +83,31 @@
       border: 1px solid rgba(255,255,255,0.08);
       font-variant-numeric: tabular-nums;
     }
+    #uiToggle {
+      position: fixed; top: 10px; right: 10px; z-index: 20;
+      width: 48px; height: 48px; padding: 0;
+      border-radius: 12px; font-size: 20px; line-height: 1;
+      background: var(--panel); color: var(--accent);
+      border: 1px solid rgba(255,255,255,0.16);
+      touch-action: manipulation;
+    }
+    body.ui-hidden #hud,
+    body.ui-hidden #legend { display: none; }
+    body.ui-hidden #compass { transform: scale(0.82); transform-origin: bottom right; }
+    @media (max-width: 700px) {
+      #hud { top: 62px; max-height: calc(100vh - 76px); }
+      #compass { right: 8px; bottom: 8px; }
+      #compass .bezel { width: 132px; height: 132px; }
+      #compass .window { left: 16px; top: 30px; width: 100px; height: 62px; }
+      #comp { width: 100px; height: 62px; }
+      #compass .lubber { top: 30px; height: 62px; }
+      #legend { display: none; }
+    }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
+  <button id="uiToggle" type="button" title="Hide or show controls" aria-label="Hide or show controls">☰</button>
   <div id="compass">
     <div class="bezel">
       <div class="window"><canvas id="comp" width="248" height="156"></canvas></div>
@@ -649,6 +670,23 @@
     resize();
 
     function bind() {
+      const uiToggle = document.getElementById('uiToggle');
+      const hideUi = () => {
+        document.body.classList.add('ui-hidden');
+        uiToggle.textContent = '☰';
+        uiToggle.title = 'Show controls';
+      };
+      const showUi = () => {
+        document.body.classList.remove('ui-hidden');
+        uiToggle.textContent = '✕';
+        uiToggle.title = 'Hide controls';
+      };
+      if (matchMedia('(max-width: 700px)').matches) hideUi();
+      else showUi();
+      uiToggle.onclick = () => {
+        if (document.body.classList.contains('ui-hidden')) showUi();
+        else hideUi();
+      };
       const set = (id, key, fmt) => {
         const el = document.getElementById(id);
         const lab = document.getElementById(id + 'V');
