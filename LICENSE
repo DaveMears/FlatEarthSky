@@ -119,3 +119,45 @@ express Statement of Purpose.
  d. Affirmer understands and acknowledges that Creative Commons is not a
     party to this document and has no duty or obligation with respect to
     this CC0 or use of the Work.
+
+------------------------------------------------------------------------
+What this covers
+------------------------------------------------------------------------
+
+CC0 above applies to the original program text of this repository: the
+page structure, interface, simulation logic, and the particular way
+those pieces were assembled.
+
+It does not apply to third-party catalogs, line art, or libraries bundled
+or loaded by the page. Those remain under their own terms. Credit them
+if you redistribute; that is politeness and, in a few cases, required.
+
+
+Third-party material
+--------------------
+
+Yale Bright Star Catalog (BSC5)
+  Star names, positions, and magnitudes embedded in the page.
+  A historical astronomical catalog. Credit: Yale University Observatory
+  / Hoffleit & Warren. This project does not claim ownership of the
+  catalog.
+
+IAU constellation boundaries
+  Official constellation boundary data of the International Astronomical
+  Union (Delporte 1930, J2000 form as commonly redistributed). The IAU
+  remains the authority on those boundaries.
+
+Constellation stick figures
+  Traditional Western asterism polylines as packaged by Olaf Frohn
+  (d3-celestial), BSD-3-Clause:
+  https://github.com/ofrohn/d3-celestial
+  Those figures are not an IAU standard.
+
+Three.js
+  Loaded from a CDN at runtime. MIT License.
+  https://github.com/mrdoob/three.js
+
+The simulation was written in conversation with Grok (xAI). Neither
+party is trying to get a Big Mac out of it. If a lawyer appears anyway,
+CC0 is the answer for the original text, and the list above is the
+answer for everything else.
