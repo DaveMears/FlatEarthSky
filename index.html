@@ -13,8 +13,8 @@
       --accent: #f4c14e;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; overflow: hidden; }
-    #c { position: fixed; inset: 0; display: block; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; overflow: hidden; color-scheme: dark; }
+    #c { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
     #hud {
       position: fixed; top: 14px; left: 14px; width: min(380px, calc(100vw - 28px));
       background: var(--panel); backdrop-filter: blur(10px);
@@ -26,12 +26,40 @@
     label { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--muted); margin: 8px 0 2px; }
     label b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
     input[type=range] { width: 100%; accent-color: var(--accent); }
+    input[type=number], input[type=date], input[type=time] {
+      width: 100%; background: #1a2433; color: var(--ink);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      padding: 6px 8px; font-size: 12px; font-variant-numeric: tabular-nums;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .grid2 label { display: block; margin: 0 0 4px; }
+    .grid2 label span { display: block; margin-bottom: 3px; }
+    .grid2.wide { grid-template-columns: 1fr; }
+    #searchHits {
+      list-style: none; margin: 4px 0 0; padding: 0; max-height: 140px; overflow: auto;
+      font-size: 12px;
+    }
+    #searchHits li {
+      padding: 5px 8px; cursor: pointer; border-radius: 6px;
+      background: #1a2433; margin-top: 3px; color: var(--ink);
+    }
+    #searchHits li:hover { background: #223044; }
     .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     button {
       background: #1a2433; color: var(--ink); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+      touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    button.on, button:hover { background: #2a3b55; border-color: var(--accent); }
+    button:hover { background: #223044; }
+    button.on { background: #2a3b55; border-color: var(--accent); color: var(--accent); }
+    select {
+      width: 100%; background: #1a2433; color: var(--ink);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      padding: 6px 8px; font-size: 12px;
+    }
+    #ladder {
+      position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    }
     #closest {
       margin-top: 12px; padding: 10px; border-radius: 10px;
       background: rgba(244,193,78,0.08); border: 1px solid rgba(244,193,78,0.25);
@@ -103,10 +131,22 @@
       #compass .lubber { top: 30px; height: 62px; }
       #legend { display: none; }
     }
+    #clock {
+      position: fixed; left: 14px; bottom: 14px; z-index: 6;
+      font-variant-numeric: tabular-nums; font-size: 12px;
+      background: var(--panel); padding: 6px 10px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08); color: var(--ink);
+      pointer-events: none; line-height: 1.35;
+    }
+    #clock .muted { color: var(--muted); font-size: 11px; }
+    @media (max-width: 700px) {
+      #clock { left: 8px; bottom: 8px; font-size: 11px; }
+    }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
+  <canvas id="ladder"></canvas>
   <button id="uiToggle" type="button" title="Hide or show controls" aria-label="Hide or show controls">☰</button>
   <div id="compass">
     <div class="bezel">
@@ -115,40 +155,86 @@
     </div>
     <div id="compRead">000° · true north = pole</div>
   </div>
+  <div id="clock">
+    <div id="clockLocal">—</div>
+    <div class="muted" id="clockMeta"></div>
+  </div>
   <div id="hud">
     <h1>Disk World Star Dome</h1>
     <div class="sub">Flat disk, equator at one Earth radius from the north pole. Dome height at the pole runs from 100 km to a hemisphere. Ice wall is a short rim. Each star sits above the lat/lon where it is at zenith right now.</div>
 
-    <label>Latitude <b id="latV">35.6°</b></label>
-    <input id="lat" type="range" min="-90" max="90" step="0.1" value="35.6" />
-    <label>Longitude <b id="lonV">−77.4°</b></label>
-    <input id="lon" type="range" min="-180" max="180" step="0.1" value="-77.4" />
+    <div class="grid2">
+      <label><span>Latitude °</span><input id="lat" type="number" min="-90" max="90" step="0.01" value="35.78" /></label>
+      <label><span>Longitude °</span><input id="lon" type="number" min="-180" max="180" step="0.01" value="-78.64" /></label>
+      <label><span>Date</span><input id="date" type="date" value="2026-09-27" /></label>
+      <label><span>Local time</span><input id="time" type="time" step="1" value="12:00:00" /></label>
+      <label><span>Time zone (h from UTC)</span><input id="tz" type="number" min="-12" max="14" step="0.25" value="-4" /></label>
+      <label><span>Place</span>
+        <select id="city">
+          <option value="35.78,-78.64" selected>Raleigh</option>
+          <option value="40.71,-74.01">New York</option>
+          <option value="51.51,-0.13">London</option>
+          <option value="30.04,31.24">Cairo</option>
+          <option value="35.68,139.69">Tokyo</option>
+          <option value="1.35,103.82">Singapore</option>
+          <option value="-33.87,151.21">Sydney</option>
+          <option value="-33.92,18.42">Cape Town</option>
+          <option value="-33.45,-70.67">Santiago</option>
+          <option value="-54.80,-68.30">Ushuaia</option>
+          <option value="64.15,-21.94">Reykjavík</option>
+          <option value="-77.84,166.69">McMurdo</option>
+          <option value="pole">North Pole</option>
+          <option value="equator">Equator (same longitude)</option>
+          <option value="ice">Ice wall / south pole</option>
+          <option value="sun">Stand under the Sun</option>
+        </select>
+      </label>
+    </div>
     <label>Dome height at pole <b id="hV">1.00 R⊕</b></label>
     <input id="h" type="range" min="0.0157" max="2" step="0.001" value="1.00" />
-    <label>Day of year <b id="doyV">172</b></label>
-    <input id="doy" type="range" min="1" max="365" step="1" value="172" />
-    <label>Local solar time on lon 0° <b id="hourV">12:00</b></label>
-    <input id="hour" type="range" min="0" max="24" step="0.01" value="12" />
-    <label>Draw stars brighter than V <b id="magV">6.0</b></label>
-    <input id="mag" type="range" min="-1.5" max="6.0" step="0.1" value="6.0" />
+    <label>Eye FOV (zoom) <b id="fovV">45°</b></label>
+    <input id="fov" type="range" min="15" max="100" step="1" value="45" />
+    <label>Sun / Moon scale <b id="smV">1.0×</b></label>
+    <input id="sm" type="range" min="1" max="4" step="0.1" value="1" />
+    <label>Draw stars brighter than V <b id="magV">2.6</b></label>
+    <input id="mag" type="range" min="-1.5" max="6.0" step="0.1" value="2.6" />
+    <div class="grid2 wide">
+      <label><span>Find a place (OpenStreetMap)</span>
+        <input id="search" type="text" placeholder="Ushuaia, Argentina" autocomplete="off" />
+      </label>
+      <ul id="searchHits"></ul>
+      <label><span>Look at</span>
+        <select id="lookAt"><option value="">—</option></select>
+      </label>
+      <label><span>Ground light</span>
+        <select id="gnd">
+          <option value="off" selected>Default — unlit</option>
+          <option value="true">True — overhead sky</option>
+          <option value="fe">FE — Sun as streetlight</option>
+        </select>
+      </label>
+    </div>
 
     <div class="row">
-      <button id="btnView" class="on">Overview</button>
-      <button id="btnEye">From observer</button>
-      <button id="btnPlay">Play day</button>
-      <button id="btnNow">Real time</button>
+      <button type="button" id="btnView">Overview</button>
+      <button type="button" id="btnEye" class="on">From observer</button>
+      <button type="button" id="btnPlay">Play day</button>
+      <button type="button" id="btnNow" class="on">Real time</button>
     </div>
     <div class="row">
-      <button id="btnNP">North Pole</button>
-      <button id="btnUnder">Stand under Sun</button>
-      <button id="btnEQ">Equator</button>
-      <button id="btnSP">Ice wall</button>
-      <button id="btnNC">NC example</button>
+      <button type="button" id="btnFig">Stick figures</button>
+      <button type="button" id="btnBound">IAU bounds</button>
+      <button type="button" id="btnDome" class="on">Dome mesh</button>
     </div>
     <div class="row">
-      <button id="btnFig">Stick figures</button>
-      <button id="btnBound">IAU bounds</button>
-      <button id="btnDome" class="on">Dome mesh</button>
+      <button type="button" id="btnHudLat">HUD Lat</button>
+      <button type="button" id="btnHudLon">HUD Long</button>
+      <button type="button" id="btnHudAng">HUD Ang</button>
+      <button type="button" id="btnDay">Daytime blue</button>
+      <button type="button" id="btnTrack">Track</button>
+      <button type="button" id="btnSym">Sym</button>
+      <button type="button" id="btnSwap">Swap observer</button>
+      <button type="button" id="btnLink">Copy link</button>
     </div>
 
     <div id="closest">
@@ -168,6 +254,7 @@
   </div>
   <div id="legend">Drag to orbit · scroll to zoom · drag in first-person to look · Yale BSC5</div>
 
+  <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
   <script type="importmap">
   {
     "imports": {
@@ -201,7 +288,12 @@
 
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
-    controls.target.set(0, 0.35, 0);
+    controls.enablePan = false;
+    controls.minPolarAngle = 0.08;
+    controls.maxPolarAngle = Math.PI / 2;
+    controls.minDistance = 2.2;
+    controls.maxDistance = 40;
+    controls.target.set(0, 0, 0);
 
     scene.add(new THREE.AmbientLight(0x8899aa, 0.8));
     const key = new THREE.DirectionalLight(0xfff2d0, 0.55);
@@ -209,9 +301,14 @@
     scene.add(key);
 
     const ui = {
-      lat: 35.6, lon: -77.4, H: 1.0, doy: 172, hour: 12,
-      view: 'overview', play: false, realtime: false, magLimit: 6.0,
-      showFigs: false, showBounds: false, showDome: true
+      lat: 35.78, lon: -78.64, H: 1.0, fov: 45,
+      year: 2026, month: 9, day: 27, hour: 12, tz: -4, doy: 270,
+      view: 'eye', play: false, realtime: true, magLimit: 2.6,
+      showFigs: false, showBounds: false, showDome: true,
+      showHudLat: false, showHudLon: false, showHudAng: false, daySky: false, gnd: 'off',
+      lat2: -33.87, lon2: 151.21,
+      track: false, trackRa: null, trackDec: null,
+      planetSym: true, bodyScale: 1
     };
 
     const H_POLE_MIN = 100 / KM;          // 100 km — lowest FE "sky" at the pole
@@ -239,9 +336,22 @@
     function sunRA(doy) {
       return wrapLon((doy - 81) / 365 * 360);
     }
+    function doyFromYmd(y, m, d) {
+      const start = Date.UTC(y, 0, 0);
+      const cur = Date.UTC(y, m - 1, d);
+      return Math.floor((cur - start) / 86400000);
+    }
+    function gstUtcHours() {
+      const d = simDate();
+      return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600 + d.getUTCMilliseconds() / 3600000;
+    }
     function GST() {
-      // Degrees. At solar noon on lon 0°, GST equals the Sun's RA so ☉ is on that meridian.
-      return wrapLon(sunRA(ui.doy) + 15 * (ui.hour - 12));
+      const A = window.Astronomy;
+      if (A) {
+        try { return wrapLon(A.SiderealTime(A.MakeTime(simDate())) * 15); }
+        catch (e) {}
+      }
+      return wrapLon(sunRA(ui.doy) + 15 * (gstUtcHours() - 12));
     }
     function subsolarLon(hour) {
       return wrapLon(15 * (12 - hour));
@@ -251,9 +361,59 @@
     }
 
     // ---- ground ----
+    const diskUniforms = {
+      uMode: { value: 0 },
+      uSunPos: { value: new THREE.Vector3(0, 1, 0) },
+      uSunDec: { value: 0 },
+      uSubLon: { value: 0 },
+      uH: { value: 1 }
+    };
     const disk = new THREE.Mesh(
       new THREE.CircleGeometry(DISK_R, 160),
-      new THREE.MeshStandardMaterial({ color: 0x0b1524, roughness: 0.95, metalness: 0.0, side: THREE.DoubleSide })
+      new THREE.ShaderMaterial({
+        uniforms: diskUniforms,
+        side: THREE.DoubleSide,
+        vertexShader: `
+          varying vec2 vXZ;
+          void main() {
+            vec4 w = modelMatrix * vec4(position, 1.0);
+            vXZ = w.xz;
+            gl_Position = projectionMatrix * viewMatrix * w;
+          }
+        `,
+        fragmentShader: `
+          uniform int uMode;
+          uniform vec3 uSunPos;
+          uniform float uSunDec, uSubLon, uH;
+          varying vec2 vXZ;
+          void main() {
+            float r = length(vXZ);
+            if (r > 2.001) discard;
+            float lat = radians(90.0 - 90.0 * r);
+            float lon = atan(vXZ.y, vXZ.x); // after Rx, world z is vXZ.y
+            // Circle lives in XY then Rx(-90): world (x,z) = local (x,y). vXZ = world.xz.
+            lon = atan(vXZ.y, vXZ.x);
+            vec3 night = vec3(0.04, 0.055, 0.07);
+            vec3 dayG = vec3(0.18, 0.38, 0.16);
+            vec3 col = night;
+            if (uMode == 0) {
+              col = vec3(0.043, 0.082, 0.141);
+            } else if (uMode == 1) {
+              float dec = radians(uSunDec);
+              float ha = lon - radians(uSubLon);
+              float sinAlt = sin(lat)*sin(dec) + cos(lat)*cos(dec)*cos(ha);
+              float day = smoothstep(-0.05, 0.25, sinAlt);
+              col = mix(night, dayG, day);
+            } else {
+              float d = length(vec3(vXZ.x, 0.0, vXZ.y) - uSunPos);
+              float att = uH * uH / max(d * d, 0.002);
+              att = clamp(att, 0.0, 1.6);
+              col = mix(night, dayG * 1.15, clamp(att, 0.0, 1.0));
+            }
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      })
     );
     disk.rotation.x = -Math.PI / 2;
     scene.add(disk);
@@ -268,15 +428,15 @@
       const pts = [];
       for (let i = 0; i <= 160; i++) {
         const a = (i / 160) * Math.PI * 2;
-        pts.push(new THREE.Vector3(rr * Math.cos(a), 0.003, rr * Math.sin(a)));
+        pts.push(new THREE.Vector3(rr * Math.cos(a), 2e-6, rr * Math.sin(a)));
       }
       grid.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lat === 0 ? eqMat : lineMat));
     }
     for (let lon = 0; lon < 360; lon += 15) {
       const a = THREE.MathUtils.degToRad(lon);
       grid.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0.003, 0),
-        new THREE.Vector3(DISK_R * Math.cos(a), 0.003, DISK_R * Math.sin(a))
+        new THREE.Vector3(0, 2e-6, 0),
+        new THREE.Vector3(DISK_R * Math.cos(a), 2e-6, DISK_R * Math.sin(a))
       ]), lineMat));
     }
 
@@ -289,24 +449,86 @@
 
     // NP marker — small red pin, not a sun
     const np = new THREE.Mesh(
-      new THREE.ConeGeometry(0.02, 0.07, 10),
-      new THREE.MeshBasicMaterial({ color: 0xff3355 })
+      new THREE.ConeGeometry(0.03, 0.09, 8),
+      new THREE.MeshBasicMaterial({ color: 0xc44555, transparent: true, opacity: 0.85 })
     );
-    np.position.y = 0.035;
+    np.position.y = 0.045;
     scene.add(np);
+    const poleCap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.02, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0xc44555, depthTest: false })
+    );
+    poleCap.renderOrder = 4;
+    scene.add(poleCap);
+    const poleAxis = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 12, 0)
+      ]),
+      new THREE.LineBasicMaterial({
+        color: 0xc44555, transparent: true, opacity: 0.4,
+        depthTest: true, depthWrite: false
+      })
+    );
+    poleAxis.frustumCulled = false;
+    poleAxis.renderOrder = 2;
+    scene.add(poleAxis);
 
     // dome shell (ellipsoid hemisphere: radius DISK_R in XZ, H in Y)
-    const domeMat = new THREE.MeshBasicMaterial({
-      color: 0x05060a, transparent: true, opacity: 0.22,
-      side: THREE.BackSide, depthWrite: false, depthTest: true
+    const domeUniforms = {
+      uDay: { value: 0 },
+      uSunDec: { value: 0 },
+      uSubLon: { value: 0 },
+      uOpacity: { value: 0.22 }
+    };
+    const domeMat = new THREE.ShaderMaterial({
+      uniforms: domeUniforms,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.BackSide,
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uDay, uSunDec, uSubLon, uOpacity;
+        varying vec3 vPos;
+        void main() {
+          vec3 col = vec3(0.02, 0.024, 0.04);
+          float a = uOpacity;
+          if (uDay > 0.5) {
+            float r = length(vPos.xz);
+            float lat = radians(90.0 - 180.0 * r);
+            float lon = atan(vPos.z, vPos.x);
+            float dec = radians(uSunDec);
+            float ha = lon - radians(uSubLon);
+            float sinAlt = sin(lat)*sin(dec) + cos(lat)*cos(dec)*cos(ha);
+            // Soft dusk/dawn instead of a hard terminator. Night stays
+            // transparent so stars read; day is the globe-mapped blue.
+            float day = smoothstep(-0.20, 0.12, sinAlt);
+            float twilight = smoothstep(-0.20, 0.0, sinAlt) * (1.0 - smoothstep(0.0, 0.18, sinAlt));
+            col = mix(vec3(0.02, 0.024, 0.04), vec3(0.18, 0.42, 0.78), day);
+            col = mix(col, vec3(0.55, 0.28, 0.18), twilight * 0.55);
+            a = mix(0.0, 0.55, day) + twilight * 0.28;
+          }
+          if (a < 0.02) discard;
+          gl_FragColor = vec4(col, a);
+        }
+      `
     });
     const domeWireMat = new THREE.MeshBasicMaterial({
       color: 0x3a5368, transparent: true, opacity: 0.14,
       wireframe: true, side: THREE.FrontSide, depthWrite: false, depthTest: true
     });
-    const domeGeo = new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+    const domeGeo = new THREE.SphereGeometry(1, 96, 48, 0, Math.PI * 2, 0, Math.PI / 2);
     const domeMesh = new THREE.Mesh(domeGeo, domeMat);
+    domeMesh.renderOrder = 1;
     const domeWire = new THREE.Mesh(domeGeo, domeWireMat);
+    domeWire.renderOrder = 1;
     const domeGroup = new THREE.Group();
     domeGroup.add(domeMesh, domeWire);
     scene.add(domeGroup);
@@ -314,8 +536,18 @@
       ui.H = Math.min(H_POLE_MAX, Math.max(H_POLE_MIN, ui.H));
       domeGroup.position.y = 0;
       domeGroup.scale.set(DISK_R, ui.H, DISK_R);
-      wall.scale.y = Math.max(WALL_H, 0.004);
+      wall.scale.y = WALL_H;
       wall.position.y = wall.scale.y / 2;
+      poleCap.position.set(0, ui.H, 0);
+      syncDomeParts();
+    }
+    function syncDomeParts() {
+      // Wire is the mesh toggle. Fill exists so daytime blue can stand alone.
+      domeGroup.visible = ui.showDome || ui.daySky;
+      if (domeWire) domeWire.visible = ui.showDome;
+      if (domeMesh) domeMesh.visible = ui.showDome || ui.daySky;
+      if (!ui.showDome && ui.daySky) domeUniforms.uOpacity.value = 0.0;
+      else domeUniforms.uOpacity.value = 0.22;
     }
 
     // observer — pin is oversized so you can see it from orbit; the camera is 2 m
@@ -333,6 +565,19 @@
     obs.children[0].position.y = 0.03;
     obs.add(obsHead);
     scene.add(obs);
+    const obs2 = new THREE.Group();
+    obs2.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.06, 8),
+      new THREE.MeshBasicMaterial({ color: 0xf4c14e })
+    ));
+    const obs2Head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, 12, 10),
+      new THREE.MeshBasicMaterial({ color: 0xf4c14e })
+    );
+    obs2Head.position.y = 0.04;
+    obs2.children[0].position.y = 0.03;
+    obs2.add(obs2Head);
+    scene.add(obs2);
 
     const zenith = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0)]),
@@ -346,28 +591,58 @@
     zenithDot.visible = false;
     scene.add(zenithDot);
 
-    // sun as ☉ sprite + drop line to ground
+    // Sun is a disk sticker on the inner dome. Diameter is chosen so that
+    // from the north pole, with the Sun at the apex, it subtends 32' —
+    // the real solar angular size — given the current dome height H.
     function makeSunTexture() {
       const s = 256;
       const c = document.createElement('canvas');
       c.width = c.height = s;
       const g = c.getContext('2d');
       g.clearRect(0, 0, s, s);
-      g.fillStyle = 'rgba(255, 210, 80, 0.14)';
-      g.beginPath(); g.arc(s/2, s/2, 110, 0, Math.PI*2); g.fill();
-      g.fillStyle = '#ffe566';
-      g.font = '900 180px "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols", serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText('☉', s/2, s/2 + 8);
+      const cx = s/2, cy = s/2;
+      const glow = g.createRadialGradient(cx, cy, 4, cx, cy, 127);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.22, '#fff4a8');
+      glow.addColorStop(0.62, '#ffcc33');
+      glow.addColorStop(1, '#ff9a00');
+      g.fillStyle = glow;
+      g.beginPath(); g.arc(cx, cy, 127, 0, Math.PI*2); g.fill();
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       return tex;
     }
-    const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: makeSunTexture(), transparent: true, depthWrite: false, sizeAttenuation: true
+    const sunMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: makeSunTexture(), transparent: true, side: THREE.DoubleSide,
+        depthWrite: false, depthTest: false, toneMapped: false
+      })
+    );
+    sunMesh.renderOrder = 20;
+    sunMesh.frustumCulled = false;
+    scene.add(sunMesh);
+    function makeGlowTexture() {
+      const s = 128, c = document.createElement('canvas');
+      c.width = c.height = s;
+      const g = c.getContext('2d');
+      const grd = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+      grd.addColorStop(0, 'rgba(255,245,180,0.85)');
+      grd.addColorStop(0.25, 'rgba(255,200,60,0.28)');
+      grd.addColorStop(1, 'rgba(255,160,0,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, s, s);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+    const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeGlowTexture(), transparent: true, depthTest: false, depthWrite: false,
+      sizeAttenuation: true
     }));
-    scene.add(sunSprite);
+    sunGlow.renderOrder = 18;
+    sunGlow.frustumCulled = false;
+    scene.add(sunGlow);
     const sunDrop = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1,0)]),
       new THREE.LineDashedMaterial({ color: 0xf4c14e, transparent: true, opacity: 0.55, dashSize: 0.04, gapSize: 0.03 })
@@ -482,28 +757,262 @@
       const eye = ui.view === 'eye';
       obs.position.set(p.x, 0, p.z);
       obs.visible = !eye;
-      zenith.position.set(p.x, eye ? EYE_H : 0, p.z);
-      zenith.scale.y = Math.max(0.02, yTop - (eye ? EYE_H : 0));
-      zenithDot.position.set(p.x, yTop, p.z);
-      zenithDot.visible = eye;
+      const q = xyFromLatLon(ui.lat2, ui.lon2);
+      obs2.position.set(q.x, 0, q.z);
+      obs2.visible = !eye;
+      np.visible = !eye;
+      poleCap.visible = !eye;
+      poleAxis.visible = eye;
+      poleAxis.material.opacity = 0.35;
+      zenith.visible = !eye;
+      grid.visible = !eye;
+      wall.visible = !eye;
+      zenith.position.set(p.x, 0, p.z);
+      zenith.scale.y = Math.max(0.02, yTop);
+      zenithDot.visible = false;
     }
 
     function placeSun() {
-      const dec = solarDec(ui.doy);
-      const lon = subsolarLon(ui.hour);
+      let dec = solarDec(ui.doy);
+      let lon = subsolarLon(ui.hour);
+      const sunEq = bodyRaDec('Sun');
+      if (sunEq) {
+        dec = sunEq.dec;
+        lon = zenithLon(sunEq.ra);
+      }
       const p = xyFromLatLon(dec, lon);
       const y = domeY(p.r);
-      sunSprite.position.set(p.x, y, p.z);
-      // Diameter that subtends 32' from the north pole looking up a distance H.
-      // Sprites are quads; keep that world size so first-person-at-pole is honest.
-      // Floor it just enough that overview can still find the symbol.
-      const physical = 2 * ui.H * Math.tan(SUN_ANG / 2);
-      sunSprite.scale.setScalar(Math.max(physical, 0.045));
-      sunGround.position.set(p.x, 0.004, p.z);
-      sunDrop.position.set(p.x, 0, p.z);
-      sunDrop.scale.y = Math.max(0.02, y);
-      sunDrop.computeLineDistances();
+      const basis = orientOnDome(sunMesh, p.x, y, p.z);
+      sunMesh.scale.setScalar(stickerSize(sunMesh.position));
+      sunMesh.visible = true;
+      sunGlow.position.copy(sunMesh.position);
+      const gDist = camera.position.distanceTo(sunGlow.position);
+      const glowD = 2 * Math.max(gDist, 1e-4) * Math.tan((ui.view === 'eye' ? 1.6 : 3.2) * Math.PI / 180);
+      sunGlow.scale.setScalar(Math.max(glowD, sunMesh.scale.x * 3));
+      sunGlow.visible = true;
+      sunDrop.visible = false;
+      sunGround.visible = false;
+      domeUniforms.uSunDec.value = dec;
+      domeUniforms.uSubLon.value = lon;
+      domeUniforms.uDay.value = ui.daySky ? 1 : 0;
+      diskUniforms.uSunDec.value = dec;
+      diskUniforms.uSubLon.value = lon;
+      diskUniforms.uSunPos.value.set(p.x, y, p.z);
+      diskUniforms.uH.value = ui.H;
+      diskUniforms.uMode.value = ui.gnd === 'true' ? 1 : ui.gnd === 'fe' ? 2 : 0;
       return { dec, lon, p, y };
+    }
+
+    function simDate() {
+      // ui.year/month/day/hour are wall-clock in ui.tz hours from UTC.
+      const localAsUtc = Date.UTC(ui.year, ui.month - 1, ui.day) + ui.hour * 3600000;
+      return new Date(localAsUtc - ui.tz * 3600000);
+    }
+    function bodyRaDec(name) {
+      const A = window.Astronomy;
+      if (!A) return null;
+      try {
+        const t = A.MakeTime(simDate());
+        const obs = new A.Observer(0, 0, 0);
+        const eq = A.Equator(A.Body[name], t, obs, true, true);
+        return { ra: eq.ra * 15, dec: eq.dec };
+      } catch (e) { return null; }
+    }
+    function domeNormal(x, y, z) {
+      return new THREE.Vector3(
+        x / (DISK_R * DISK_R),
+        y / Math.max(1e-8, ui.H * ui.H),
+        z / (DISK_R * DISK_R)
+      ).normalize();
+    }
+    function orientOnDome(obj, x, y, z) {
+      const n = domeNormal(x, y, z);
+      const inward = n.clone().negate();
+      let north = new THREE.Vector3(-x, 0, -z);
+      if (north.lengthSq() < 1e-12) north.set(0, 0, 1);
+      north.addScaledVector(n, -north.dot(n));
+      if (north.lengthSq() < 1e-12) {
+        north.set(1, 0, 0);
+        north.addScaledVector(n, -north.dot(n));
+      }
+      north.normalize();
+      const east = new THREE.Vector3().crossVectors(inward, north).normalize();
+      north.crossVectors(east, inward).normalize();
+      // Sit just inside the shell so the dome fill cannot eat the sticker.
+      const lift = Math.min(0.02, Math.max(0.0004, ui.H * 0.012));
+      const pos = new THREE.Vector3(x, y, z).addScaledVector(inward, lift);
+      obj.position.copy(pos);
+      // Mesh.lookAt aims local -Z at the target. Aim at a point outside the
+      // dome so local +Z (the PlaneGeometry face) points inward — paint-on-glass.
+      obj.up.copy(north);
+      obj.lookAt(pos.x + n.x, pos.y + n.y, pos.z + n.z);
+      return { east, north, inward };
+    }
+    function stickerSize(worldPos) {
+      const dist = camera.position.distanceTo(worldPos);
+      const d = 2 * Math.max(dist, 1e-4) * Math.tan(SUN_ANG / 2) * (ui.bodyScale || 1);
+      if (ui.view !== 'eye') return Math.max(d, 0.03 * ui.bodyScale);
+      return Math.max(d, 1e-6);
+    }
+
+    const moonCanvas = document.createElement('canvas');
+    moonCanvas.width = moonCanvas.height = 256;
+    const moonTex = new THREE.CanvasTexture(moonCanvas);
+    moonTex.colorSpace = THREE.SRGBColorSpace;
+    const moonMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: moonTex, transparent: true, side: THREE.DoubleSide,
+        depthWrite: false, depthTest: false, toneMapped: false
+      })
+    );
+    moonMesh.renderOrder = 2;
+    moonMesh.frustumCulled = false;
+    scene.add(moonMesh);
+
+    function paintMoon(frac, sunE, sunN) {
+      const g = moonCanvas.getContext('2d');
+      const s = 256, cx = 128, cy = 128, rad = 118;
+      g.clearRect(0, 0, s, s);
+      const img = g.createImageData(s, s);
+      const d = img.data;
+      const sl = Math.hypot(sunE, sunN) || 1;
+      const ux = sunE / sl, uy = -sunN / sl;
+      const cut = 1 - 2 * frac;
+      for (let y = 0; y < s; y++) {
+        for (let x = 0; x < s; x++) {
+          const dx = (x - cx) / rad, dy = (y - cy) / rad;
+          const rr = dx * dx + dy * dy;
+          if (rr > 1) continue;
+          const lit = dx * ux + dy * uy > cut;
+          const i = (y * s + x) * 4;
+          if (lit) { d[i]=217; d[i+1]=211; d[i+2]=196; d[i+3]=230; }
+          else { d[i]=0; d[i+1]=0; d[i+2]=0; d[i+3]=0; }
+        }
+      }
+      g.putImageData(img, 0, 0);
+      if (ui.view !== 'eye') {
+        g.strokeStyle = '#7dffb3';
+        g.lineWidth = 3;
+        g.beginPath(); g.moveTo(cx, cy - rad + 6); g.lineTo(cx, 8); g.stroke();
+        g.fillStyle = '#7dffb3';
+        g.font = '14px sans-serif';
+        g.textAlign = 'center';
+        g.fillText('N', cx, 14);
+      }
+      moonTex.needsUpdate = true;
+    }
+
+    const PLANETS = [
+      { id: 'Mercury', color: [0.77, 0.71, 0.60] },
+      { id: 'Venus', color: [0.96, 0.90, 0.66] },
+      { id: 'Mars', color: [0.88, 0.44, 0.25] },
+      { id: 'Jupiter', color: [0.94, 0.85, 0.66] },
+      { id: 'Saturn', color: [0.91, 0.83, 0.54] }
+    ];
+    const planetGeo = new THREE.BufferGeometry();
+    planetGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PLANETS.length * 3), 3));
+    planetGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(PLANETS.length * 3), 3));
+    const planetPoints = new THREE.Points(
+      planetGeo,
+      new THREE.PointsMaterial({
+        size: 3, sizeAttenuation: false, vertexColors: true,
+        depthTest: false, depthWrite: false
+      })
+    );
+    planetPoints.frustumCulled = false;
+    planetPoints.renderOrder = 5;
+    planetPoints.visible = false;
+    scene.add(planetPoints);
+    const PLANET_GLYPH = { Mercury:'☿', Venus:'♀', Mars:'♂', Jupiter:'♃', Saturn:'♄' };
+    function makeGlyphSprite(ch, rgb) {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const g = c.getContext('2d');
+      g.clearRect(0,0,128,128);
+      g.font = '80px "Segoe UI Symbol","Apple Symbols","Noto Sans Symbols",serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 8; g.strokeStyle = 'rgba(0,0,0,0.7)';
+      g.strokeText(ch, 64, 70);
+      g.fillStyle = `rgb(${Math.round(rgb[0]*255)},${Math.round(rgb[1]*255)},${Math.round(rgb[2]*255)})`;
+      g.fillText(ch, 64, 70);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthTest: false, depthWrite: false,
+        sizeAttenuation: false
+      }));
+      spr.scale.set(0.07, 0.07, 1);
+      spr.userData.id = ch;
+      spr.renderOrder = 16;
+      spr.frustumCulled = false;
+      scene.add(spr);
+      return spr;
+    }
+    const planetSprites = PLANETS.map(p => makeGlyphSprite(PLANET_GLYPH[p.id], p.color));
+
+    function placeBodies() {
+      const sun = placeSun();
+      const moonEq = bodyRaDec('Moon');
+      if (moonEq) {
+        const p = xyFromLatLon(moonEq.dec, zenithLon(moonEq.ra));
+        const y = domeY(p.r);
+        const basis = orientOnDome(moonMesh, p.x, y, p.z);
+        moonMesh.scale.setScalar(stickerSize(moonMesh.position));
+        const toSun = new THREE.Vector3(sun.p.x - p.x, sun.y - y, sun.p.z - p.z);
+        const sunE = toSun.dot(basis.east);
+        const sunN = toSun.dot(basis.north);
+        let frac = 0.5;
+        const A = window.Astronomy;
+        if (A) {
+          try { frac = A.Illumination(A.Body.Moon, A.MakeTime(simDate())).phase_fraction; }
+          catch (e) {}
+        }
+        paintMoon(frac, sunE, sunN);
+        moonMesh.visible = true;
+      } else {
+        // fallback: opposite the sun on the ecliptic-ish
+        const p = xyFromLatLon(-sun.dec, wrapLon(sun.lon + 180));
+        orientOnDome(moonMesh, p.x, domeY(p.r), p.z);
+        moonMesh.scale.setScalar(0.05);
+        paintMoon(0.5, 1, 0);
+      }
+      const ppos = planetGeo.attributes.position;
+      const pcol = planetGeo.attributes.color;
+      let drawn = 0;
+      for (let i = 0; i < PLANETS.length; i++) {
+        const pl = PLANETS[i];
+        const eq = bodyRaDec(pl.id);
+        let mag = 99;
+        const A = window.Astronomy;
+        if (A) {
+          try { mag = A.Illumination(A.Body[pl.id], A.MakeTime(simDate())).mag; }
+          catch (e) {}
+        }
+        if (!eq || mag > 6.0) {
+          ppos.setXYZ(i, 0, -10, 0);
+          pcol.setXYZ(i, 0, 0, 0);
+          planetSprites[i].visible = false;
+          continue;
+        }
+        if (ui.daySky && plateSinAlt(eq.dec, zenithLon(eq.ra), sun.dec, sun.lon) > 0.04) {
+          ppos.setXYZ(i, 0, -10, 0);
+          pcol.setXYZ(i, 0, 0, 0);
+          planetSprites[i].visible = false;
+          continue;
+        }
+        const p = xyFromLatLon(eq.dec, zenithLon(eq.ra));
+        ppos.setXYZ(i, p.x, domeY(p.r), p.z);
+        pcol.setXYZ(i, pl.color[0], pl.color[1], pl.color[2]);
+        const spr = planetSprites[i];
+        spr.position.set(p.x, domeY(p.r), p.z);
+        spr.scale.set(0.07, 0.07, 1);
+        spr.visible = ui.planetSym;
+        drawn++;
+      }
+      ppos.needsUpdate = true;
+      pcol.needsUpdate = true;
+      planetPoints.visible = drawn > 0 && !ui.planetSym;
     }
 
     function shortestRA(a, b) {
@@ -535,6 +1044,76 @@
     }
     const figLines = makeSkyLineObject(0xb8c4a0, 0.7);
     const boundLines = makeSkyLineObject(0x8a9a55, 0.55);
+    const boundLabelGroup = new THREE.Group();
+    boundLabelGroup.visible = false;
+    scene.add(boundLabelGroup);
+    const boundLabelSprites = [];
+
+    function makeAbbrevSprite(text) {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 64;
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, 128, 64);
+      g.font = '700 34px "IBM Plex Sans","Segoe UI",sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.lineWidth = 8;
+      g.strokeStyle = 'rgba(8,12,16,0.75)';
+      g.strokeText(text, 64, 34);
+      g.fillStyle = '#e6f2a8';
+      g.fillText(text, 64, 34);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthTest: false, depthWrite: false,
+        sizeAttenuation: true
+      }));
+      spr.userData.code = text;
+      spr.renderOrder = 4;
+      spr.frustumCulled = false;
+      return spr;
+    }
+    function raDecCentroid(rings) {
+      let x = 0, y = 0, z = 0, n = 0;
+      for (const ring of rings) {
+        for (const pt of ring) {
+          const ra = pt[0] * Math.PI / 180, dec = pt[1] * Math.PI / 180;
+          const c = Math.cos(dec);
+          x += c * Math.cos(ra);
+          y += c * Math.sin(ra);
+          z += Math.sin(dec);
+          n++;
+        }
+      }
+      if (!n) return null;
+      return {
+        ra: wrap360(Math.atan2(y, x) * 180 / Math.PI),
+        dec: Math.atan2(z, Math.hypot(x, y)) * 180 / Math.PI
+      };
+    }
+    function ensureBoundLabels() {
+      const data = window.CONST_DATA;
+      if (!data || boundLabelSprites.length) return;
+      for (const c of data.bounds) {
+        const cen = raDecCentroid(c.s);
+        if (!cen) continue;
+        const spr = makeAbbrevSprite(c.id);
+        spr.userData.ra = cen.ra;
+        spr.userData.dec = cen.dec;
+        boundLabelGroup.add(spr);
+        boundLabelSprites.push(spr);
+      }
+    }
+    function placeBoundLabels() {
+      const s = ui.view === 'eye'
+        ? Math.max(2 * ui.H * Math.tan(SUN_ANG * 4), 1e-4)
+        : 0.14;
+      for (const spr of boundLabelSprites) {
+        const p = onDome(spr.userData.ra, spr.userData.dec);
+        spr.position.copy(p);
+        spr.scale.set(s, s * 0.5, 1);
+      }
+    }
 
     function fillSkyLines(obj, src, stepDeg) {
       const pairs = [];
@@ -575,7 +1154,12 @@
       figLines.visible = ui.showFigs;
       boundLines.visible = ui.showBounds;
       if (ui.showFigs) fillSkyLines(figLines, data.lines, 4);
-      if (ui.showBounds) fillSkyLines(boundLines, data.bounds, 2.5);
+      if (ui.showBounds) {
+        fillSkyLines(boundLines, data.bounds, 2.5);
+        ensureBoundLabels();
+        placeBoundLabels();
+      }
+      boundLabelGroup.visible = ui.showBounds;
     }
     function wrap360(x) { x %= 360; return x < 0 ? x + 360 : x; }
     function unwrapRing(ring) {
@@ -620,15 +1204,29 @@
       return null;
     }
 
+    function plateSinAlt(lat, lon, sunDec, subLon) {
+      const φ = lat * Math.PI / 180, δ = sunDec * Math.PI / 180;
+      const ha = (lon - subLon) * Math.PI / 180;
+      return Math.sin(φ) * Math.sin(δ) + Math.cos(φ) * Math.cos(δ) * Math.cos(ha);
+    }
     function updateStarsOnDome() {
       if (!starPoints) return;
       const pos = starPoints.geometry.attributes.position;
+      const sizes = starPoints.geometry.attributes.size;
+      const sun = {
+        dec: domeUniforms.uSunDec.value,
+        lon: domeUniforms.uSubLon.value
+      };
       for (let i = 0; i < stars.length; i++) {
         const s = stars[i];
         const p = xyFromLatLon(s.Dec, zenithLon(s.RA));
         pos.setXYZ(i, p.x, domeY(p.r), p.z);
+        let sz = starSize(s);
+        if (ui.daySky && plateSinAlt(s.Dec, zenithLon(s.RA), sun.dec, sun.lon) > 0.04) sz = 0;
+        sizes.setX(i, sz);
       }
       pos.needsUpdate = true;
+      sizes.needsUpdate = true;
     }
 
     function findClosest() {
@@ -647,7 +1245,7 @@
         document.getElementById('starMeta').textContent = 'No stars brighter than the limit.';
         return;
       }
-      highlight.visible = true;
+      highlight.visible = ui.view !== 'eye';
       const y = domeY(Math.hypot(bestP.x, bestP.z));
       highlight.position.set(bestP.x, y, bestP.z);
       highlight.lookAt(bestP.x, y + 1, bestP.z);
@@ -660,16 +1258,233 @@
         `overhead IAU region: ${constellationAt(ui.lat, ui.lon) || '—'}`;
     }
 
+    function viewSize() {
+      return {
+        w: Math.max(1, innerWidth),
+        h: Math.max(1, innerHeight)
+      };
+    }
+    function overviewDistance() {
+      const { w, h } = viewSize();
+      const vFov = (camera.fov * Math.PI) / 180;
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * (w / h));
+      const fov = Math.min(hFov, vFov);
+      // Full model span is the diameter (ice wall to ice wall), not the radius.
+      const half = DISK_R;
+      return half / Math.max(0.05, Math.tan(fov / 2));
+    }
+    function fitOverviewCamera() {
+      const dist = overviewDistance();
+      const polar = 40 * Math.PI / 180;
+      const x = 0;
+      const y = dist * Math.cos(polar);
+      const z = dist * Math.sin(polar);
+      const damp = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.target.set(0, 0, 0);
+      camera.up.set(0, 1, 0);
+      camera.position.set(x, y, z);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld(true);
+      if (controls.target0) {
+        controls.target0.set(0, 0, 0);
+        controls.position0.set(x, y, z);
+      }
+      controls.update();
+      controls.enableDamping = damp;
+    }
     function resize() {
-      const w = innerWidth, h = innerHeight;
+      const { w, h } = viewSize();
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (ui.view === 'overview') fitOverviewCamera();
     }
     addEventListener('resize', resize);
     resize();
 
+    function applyEyeCam() {
+      camera.fov = ui.fov;
+      camera.near = 1e-7;
+      camera.far = 20;
+      camera.updateProjectionMatrix();
+    }
+    function viewTarget() {
+      const p = xyFromLatLon(ui.lat, ui.lon);
+      const d = lookDir(eyeYaw, eyePitch);
+      const hit = hitDome(p.x, EYE_H, p.z, d.x, d.y, d.z);
+      if (!hit) return { lat: ui.lat, lon: ui.lon };
+      return {
+        lat: 90 - 90 * Math.hypot(hit.x, hit.z) / R,
+        lon: Math.atan2(hit.z, hit.x) * 180 / Math.PI
+      };
+    }
+    function lookAtPlate(latT, lonT) {
+      const eye = xyFromLatLon(ui.lat, ui.lon);
+      const tgt = xyFromLatLon(latT, lonT);
+      const y = Math.max(domeY(tgt.r), EYE_H + 1e-6);
+      const dx = tgt.x - eye.x, dy = y - EYE_H, dz = tgt.z - eye.z;
+      eyeYaw = Math.atan2(dx, dz);
+      const horiz = Math.hypot(dx, dz);
+      eyePitch = Math.atan2(dy, Math.max(horiz, 1e-8));
+      eyePitch = Math.max(0, Math.min(Math.PI / 2, eyePitch));
+    }
+    function lookAtRaDec(ra, dec) {
+      lookAtPlate(dec, zenithLon(ra));
+    }
+    function armTrack() {
+      const t = viewTarget();
+      ui.trackDec = t.lat;
+      ui.trackRa = wrap360(t.lon + GST());
+    }
+    function populateLookAt() {
+      const sel = document.getElementById('lookAt');
+      if (!sel || sel.options.length > 4) return;
+      const opts = [
+        ['sun', 'Sun'], ['moon', 'Moon'],
+        ['Mercury', 'Mercury'], ['Venus', 'Venus'], ['Mars', 'Mars'],
+        ['Jupiter', 'Jupiter'], ['Saturn', 'Saturn'],
+        ['polaris', 'Polaris'], ['np', 'North pole (apex)']
+      ];
+      for (const [v, lab] of opts) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = lab; sel.appendChild(o);
+      }
+      const data = window.CONST_DATA;
+      if (data && data.names) {
+        const ids = Object.keys(data.names).sort();
+        for (const id of ids) {
+          const o = document.createElement('option');
+          o.value = 'c:' + id;
+          o.textContent = id + ' · ' + data.names[id];
+          sel.appendChild(o);
+        }
+      }
+    }
+    function doLookAt(v) {
+      if (!v) return;
+      if (ui.track) { ui.track = false; document.getElementById('btnTrack').classList.remove('on'); }
+      if (v === 'np') { lookAtPlate(90, ui.lon); return; }
+      if (v === 'polaris') { lookAtRaDec(37.9546, 89.2642); return; }
+      if (v === 'sun') {
+        const s = bodyRaDec('Sun');
+        if (s) lookAtRaDec(s.ra, s.dec);
+        else lookAtPlate(solarDec(ui.doy), subsolarLon(ui.hour));
+        return;
+      }
+      if (v === 'moon') {
+        const m = bodyRaDec('Moon');
+        if (m) lookAtRaDec(m.ra, m.dec);
+        return;
+      }
+      if (v.startsWith('c:')) {
+        const id = v.slice(2);
+        const data = window.CONST_DATA;
+        if (!data) return;
+        const c = data.bounds.find(b => b.id === id);
+        if (!c) return;
+        const cen = raDecCentroid(c.s);
+        if (cen) lookAtRaDec(cen.ra, cen.dec);
+        return;
+      }
+      const eq = bodyRaDec(v);
+      if (eq) lookAtRaDec(eq.ra, eq.dec);
+    }
+    function swapObserver() {
+      const keep = viewTarget();
+      const la = ui.lat, lo = ui.lon;
+      ui.lat = ui.lat2; ui.lon = ui.lon2;
+      ui.lat2 = la; ui.lon2 = lo;
+      document.getElementById('lat').value = ui.lat.toFixed(2);
+      document.getElementById('lon').value = ui.lon.toFixed(2);
+      lookAtPlate(keep.lat, keep.lon);
+      writeHash();
+    }
+    function stateObject() {
+      return {
+        lat: +ui.lat.toFixed(4), lon: +ui.lon.toFixed(4),
+        lat2: +ui.lat2.toFixed(4), lon2: +ui.lon2.toFixed(4),
+        H: +ui.H.toFixed(4), fov: ui.fov, mag: ui.magLimit,
+        date: `${ui.year}-${String(ui.month).padStart(2,'0')}-${String(ui.day).padStart(2,'0')}`,
+        time: document.getElementById('time') ? document.getElementById('time').value : '',
+        tz: ui.tz, view: ui.view, day: ui.daySky ? 1 : 0,
+        hudLat: ui.showHudLat ? 1 : 0, hudLon: ui.showHudLon ? 1 : 0, hudAng: ui.showHudAng ? 1 : 0,
+        dome: ui.showDome ? 1 : 0, gnd: ui.gnd, sym: ui.planetSym ? 1 : 0,
+        scale: ui.bodyScale, track: ui.track ? 1 : 0,
+        yaw: +eyeYaw.toFixed(4), pitch: +eyePitch.toFixed(4)
+      };
+    }
+    function writeHash() {
+      const s = stateObject();
+      const q = Object.entries(s).map(([k,v]) => k + '=' + encodeURIComponent(v)).join('&');
+      history.replaceState(null, '', '#' + q);
+    }
+    function readHash() {
+      if (!location.hash || location.hash.length < 4) return false;
+      const p = new URLSearchParams(location.hash.slice(1));
+      const num = k => { const v = parseFloat(p.get(k)); return Number.isFinite(v) ? v : null; };
+      if (p.has('lat')) ui.lat = num('lat');
+      if (p.has('lon')) ui.lon = num('lon');
+      if (p.has('lat2')) ui.lat2 = num('lat2');
+      if (p.has('lon2')) ui.lon2 = num('lon2');
+      if (p.has('H')) ui.H = num('H');
+      if (p.has('fov')) ui.fov = num('fov');
+      if (p.has('mag')) ui.magLimit = num('mag');
+      if (p.has('tz')) ui.tz = num('tz');
+      if (p.get('view')) ui.view = p.get('view') === 'overview' ? 'overview' : 'eye';
+      if (p.has('day')) ui.daySky = p.get('day') === '1';
+      if (p.has('hudLat') || p.has('hud')) ui.showHudLat = (p.get('hudLat') || p.get('hud')) === '1';
+      if (p.has('hudLon')) ui.showHudLon = p.get('hudLon') === '1';
+      if (p.has('hudAng')) ui.showHudAng = p.get('hudAng') === '1';
+      if (p.has('sym')) ui.planetSym = p.get('sym') !== '0';
+      if (p.has('scale')) ui.bodyScale = Math.max(1, Math.min(4, num('scale')));
+      if (p.has('track')) ui.track = p.get('track') === '1';
+      if (p.has('dome')) ui.showDome = p.get('dome') !== '0';
+      if (p.get('gnd')) ui.gnd = p.get('gnd');
+      if (p.has('yaw')) eyeYaw = num('yaw');
+      if (p.has('pitch')) eyePitch = Math.max(0, Math.min(Math.PI/2, num('pitch')));
+      const ds = p.get('date');
+      if (ds && /^\d{4}-\d{2}-\d{2}$/.test(ds)) {
+        const [y,m,d] = ds.split('-').map(Number);
+        ui.year = y; ui.month = m; ui.day = d;
+        ui.doy = doyFromYmd(y,m,d);
+      }
+      const ts = p.get('time');
+      if (ts) {
+        const parts = ts.split(':').map(Number);
+        ui.hour = (parts[0]||0) + (parts[1]||0)/60 + (parts[2]||0)/3600;
+      }
+      return p.has('lat') || p.has('date');
+    }
+    async function nominatimSearch(q) {
+      const ul = document.getElementById('searchHits');
+      ul.innerHTML = '<li>Searching…</li>';
+      try {
+        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=6&q=' + encodeURIComponent(q);
+        const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const rows = await r.json();
+        ul.innerHTML = '';
+        if (!rows.length) { ul.innerHTML = '<li>No matches</li>'; return; }
+        for (const row of rows) {
+          const li = document.createElement('li');
+          li.textContent = row.display_name;
+          li.onclick = () => {
+            ui.lat = parseFloat(row.lat); ui.lon = parseFloat(row.lon);
+            document.getElementById('lat').value = ui.lat.toFixed(2);
+            document.getElementById('lon').value = ui.lon.toFixed(2);
+            ul.innerHTML = '';
+            document.getElementById('search').value = row.display_name.split(',')[0];
+            writeHash();
+          };
+          ul.appendChild(li);
+        }
+      } catch (e) {
+        ul.innerHTML = '<li>Search failed (network / Nominatim)</li>';
+      }
+    }
     function bind() {
+      document.getElementById('hud').addEventListener('pointerdown', e => e.stopPropagation());
+      document.getElementById('hud').addEventListener('pointerup', e => e.stopPropagation());
       const uiToggle = document.getElementById('uiToggle');
       const hideUi = () => {
         document.body.classList.add('ui-hidden');
@@ -687,57 +1502,63 @@
         if (document.body.classList.contains('ui-hidden')) showUi();
         else hideUi();
       };
-      const set = (id, key, fmt) => {
+      const setSlider = (id, key, fmt) => {
         const el = document.getElementById(id);
         const lab = document.getElementById(id + 'V');
         const apply = () => {
           ui[key] = parseFloat(el.value);
-          lab.textContent = fmt(ui[key]);
+          if (lab) lab.textContent = fmt(ui[key]);
         };
         el.addEventListener('input', apply);
         apply();
       };
-      set('lat', 'lat', v => v.toFixed(1) + '°');
-      set('lon', 'lon', v => (v >= 0 ? v.toFixed(1) + '°' : '−' + Math.abs(v).toFixed(1) + '°'));
-      set('h', 'H', v => v.toFixed(2) + ' R⊕  (' + (v * KM).toFixed(0) + ' km)');
-      set('doy', 'doy', v => {
-        const d = new Date(Date.UTC(2026, 0, v));
-        const mon = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-        return `${v} (≈ ${mon} ${d.getUTCDate()}) · δ☉ ${solarDec(v).toFixed(1)}°`;
+      setSlider('h', 'H', v => v.toFixed(2) + ' R⊕  (' + (v * KM).toFixed(0) + ' km)');
+      setSlider('fov', 'fov', v => {
+        if (ui.view === 'eye') applyEyeCam();
+        return Math.round(v) + '°';
       });
-      set('hour', 'hour', v => {
-        const h = Math.floor(v);
-        const m = Math.floor((v - h) * 60);
-        const s = Math.floor((v - h - m / 60) * 3600);
-        return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0') + ` · noon at ${subsolarLon(v).toFixed(1)}°`;
-      });
-      set('mag', 'magLimit', v => {
+      setSlider('sm', 'bodyScale', v => v.toFixed(1) + '×');
+      setSlider('mag', 'magLimit', v => {
         applyMagFilter();
         return v.toFixed(1);
       });
-      document.getElementById('doy').addEventListener('input', () => { if (ui.realtime) stopRealtime(); });
-      document.getElementById('hour').addEventListener('input', () => { if (ui.realtime) stopRealtime(); });
+      const stopClock = () => { if (ui.realtime) stopRealtime(); };
+      document.getElementById('lat').addEventListener('input', () => {
+        const v = parseFloat(document.getElementById('lat').value);
+        if (Number.isFinite(v)) ui.lat = Math.max(-90, Math.min(90, v));
+      });
+      document.getElementById('lon').addEventListener('input', () => {
+        const v = parseFloat(document.getElementById('lon').value);
+        if (Number.isFinite(v)) ui.lon = wrapLon(v);
+      });
+      document.getElementById('tz').addEventListener('input', () => {
+        const v = parseFloat(document.getElementById('tz').value);
+        if (Number.isFinite(v)) ui.tz = Math.max(-12, Math.min(14, v));
+        stopClock();
+      });
+      document.getElementById('date').addEventListener('input', () => { readDateTimeFields(); stopClock(); });
+      document.getElementById('time').addEventListener('input', () => { readDateTimeFields(); stopClock(); });
+      document.getElementById('date').addEventListener('change', () => { readDateTimeFields(); stopClock(); });
+      document.getElementById('time').addEventListener('change', () => { readDateTimeFields(); stopClock(); });
 
       document.getElementById('btnView').onclick = () => {
         ui.view = 'overview';
         document.getElementById('btnView').classList.add('on');
         document.getElementById('btnEye').classList.remove('on');
-        controls.enabled = true;
         camera.fov = 55;
         camera.near = 0.01;
         camera.far = 200;
+        camera.up.set(0, 1, 0);
         camera.updateProjectionMatrix();
+        controls.enabled = true;
+        fitOverviewCamera();
       };
       document.getElementById('btnEye').onclick = () => {
         ui.view = 'eye';
         document.getElementById('btnEye').classList.add('on');
         document.getElementById('btnView').classList.remove('on');
         controls.enabled = false;
-        camera.fov = 80;
-        camera.near = 1e-6;
-        camera.far = 20;
-        camera.updateProjectionMatrix();
-        eyePitch = 0.85;
+        applyEyeCam();
       };
       document.getElementById('btnPlay').onclick = (e) => {
         if (ui.realtime) stopRealtime();
@@ -751,15 +1572,50 @@
       };
       const jump = (lat, lon) => {
         ui.lat = lat; ui.lon = lon;
-        document.getElementById('lat').value = lat;
-        document.getElementById('lon').value = lon;
-        document.getElementById('latV').textContent = lat.toFixed(1) + '°';
-        document.getElementById('lonV').textContent = (lon >= 0 ? lon.toFixed(1) + '°' : '−' + Math.abs(lon).toFixed(1) + '°');
+        document.getElementById('lat').value = lat.toFixed(2);
+        document.getElementById('lon').value = lon.toFixed(2);
       };
-      document.getElementById('btnNP').onclick = () => jump(90, 0);
-      document.getElementById('btnEQ').onclick = () => jump(0, ui.lon);
-      document.getElementById('btnSP').onclick = () => jump(-90, 0);
-      document.getElementById('btnNC').onclick = () => jump(35.6, -77.4);
+      document.getElementById('city').onchange = (e) => {
+        const v = e.target.value;
+        if (v === 'pole') jump(90, 0);
+        else if (v === 'equator') jump(0, ui.lon);
+        else if (v === 'ice') jump(-90, 0);
+        else if (v === 'sun') {
+          const s = bodyRaDec('Sun');
+          if (s) jump(s.dec, zenithLon(s.ra));
+          else jump(solarDec(ui.doy), subsolarLon(ui.hour));
+        } else {
+          const [la, lo] = v.split(',').map(Number);
+          jump(la, lo);
+        }
+      };
+      document.getElementById('btnHudLat').onclick = (e) => {
+        ui.showHudLat = !ui.showHudLat;
+        e.target.classList.toggle('on', ui.showHudLat);
+      };
+      document.getElementById('btnHudLon').onclick = (e) => {
+        ui.showHudLon = !ui.showHudLon;
+        e.target.classList.toggle('on', ui.showHudLon);
+      };
+      document.getElementById('btnHudAng').onclick = (e) => {
+        ui.showHudAng = !ui.showHudAng;
+        e.target.classList.toggle('on', ui.showHudAng);
+      };
+      document.getElementById('btnTrack').onclick = (e) => {
+        ui.track = !ui.track;
+        if (ui.track) armTrack();
+        e.target.classList.toggle('on', ui.track);
+      };
+      document.getElementById('btnSym').onclick = (e) => {
+        ui.planetSym = !ui.planetSym;
+        e.target.classList.toggle('on', ui.planetSym);
+      };
+      document.getElementById('btnDay').onclick = (e) => {
+        ui.daySky = !ui.daySky;
+        e.target.classList.toggle('on', ui.daySky);
+        domeUniforms.uDay.value = ui.daySky ? 1 : 0;
+        syncDomeParts();
+      };
       document.getElementById('btnFig').onclick = (e) => {
         ui.showFigs = !ui.showFigs;
         e.target.classList.toggle('on', ui.showFigs);
@@ -773,14 +1629,34 @@
       document.getElementById('btnDome').onclick = (e) => {
         ui.showDome = !ui.showDome;
         e.target.classList.toggle('on', ui.showDome);
-        domeGroup.visible = ui.showDome;
+        syncDomeParts();
       };
-      document.getElementById('btnUnder').onclick = () => {
-        jump(solarDec(ui.doy), subsolarLon(ui.hour));
+      document.getElementById('btnSwap').onclick = () => swapObserver();
+      document.getElementById('btnLink').onclick = async () => {
+        writeHash();
+        try {
+          await navigator.clipboard.writeText(location.href);
+          document.getElementById('btnLink').textContent = 'Copied';
+          setTimeout(() => document.getElementById('btnLink').textContent = 'Copy link', 1200);
+        } catch (e) {
+          prompt('Copy this URL', location.href);
+        }
       };
+      populateLookAt();
+      document.getElementById('lookAt').onchange = (e) => doLookAt(e.target.value);
+      document.getElementById('gnd').onchange = (e) => { ui.gnd = e.target.value; writeHash(); };
+      let searchTimer = 0;
+      document.getElementById('search').addEventListener('input', (e) => {
+        clearTimeout(searchTimer);
+        const q = e.target.value.trim();
+        if (q.length < 3) { document.getElementById('searchHits').innerHTML = ''; return; }
+        searchTimer = setTimeout(() => nominatimSearch(q), 400);
+      });
+      document.getElementById('lat').addEventListener('change', writeHash);
+      document.getElementById('lon').addEventListener('change', writeHash);
     }
 
-    let eyeYaw = 0, eyePitch = 0.85;
+    let eyeYaw = 0, eyePitch = 12 * Math.PI / 180;
     let dragging = false, lx = 0, ly = 0;
     canvas.addEventListener('pointerdown', e => {
       if (ui.view === 'eye') { dragging = true; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); }
@@ -790,29 +1666,58 @@
       if (!dragging || ui.view !== 'eye') return;
       eyeYaw -= (e.clientX - lx) * 0.005;
       eyePitch += (e.clientY - ly) * 0.005;
-      eyePitch = Math.max(-0.2, Math.min(1.52, eyePitch));
+      eyePitch = Math.max(0, Math.min(Math.PI / 2, eyePitch));
+      if (ui.track) {
+        ui.track = false;
+        document.getElementById('btnTrack').classList.remove('on');
+      }
       lx = e.clientX; ly = e.clientY;
     });
+    canvas.addEventListener('wheel', e => {
+      if (ui.view !== 'eye') return;
+      e.preventDefault();
+      ui.fov = Math.max(15, Math.min(100, ui.fov + (e.deltaY > 0 ? 3 : -3)));
+      document.getElementById('fov').value = ui.fov;
+      document.getElementById('fovV').textContent = Math.round(ui.fov) + '°';
+      applyEyeCam();
+    }, { passive: false });
 
-    function syncTimeSliders() {
-      document.getElementById('doy').value = ui.doy;
-      document.getElementById('hour').value = ui.hour;
-      const d = new Date(Date.UTC(2026, 0, ui.doy));
-      const mon = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-      document.getElementById('doyV').textContent =
-        `${ui.doy} (≈ ${mon} ${d.getUTCDate()}) · δ☉ ${solarDec(ui.doy).toFixed(1)}°`;
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function readDateTimeFields() {
+      const ds = document.getElementById('date').value;
+      const ts = document.getElementById('time').value;
+      if (ds) {
+        const [y, m, d] = ds.split('-').map(Number);
+        if (y && m && d) { ui.year = y; ui.month = m; ui.day = d; }
+      }
+      if (ts) {
+        const parts = ts.split(':').map(Number);
+        const hh = parts[0] || 0, mm = parts[1] || 0, ss = parts[2] || 0;
+        ui.hour = hh + mm / 60 + ss / 3600;
+      }
+      const tzv = parseFloat(document.getElementById('tz').value);
+      if (Number.isFinite(tzv)) ui.tz = tzv;
+      ui.doy = doyFromYmd(ui.year, ui.month, ui.day);
+    }
+    function writeDateTimeFields() {
+      document.getElementById('date').value = `${ui.year}-${pad2(ui.month)}-${pad2(ui.day)}`;
       const h = Math.floor(ui.hour);
       const m = Math.floor((ui.hour - h) * 60);
-      const sec = Math.floor((ui.hour - h - m / 60) * 3600);
-      document.getElementById('hourV').textContent =
-        String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0') + ` · noon at ${subsolarLon(ui.hour).toFixed(1)}°`;
+      const s = Math.floor((ui.hour - h - m / 60) * 3600);
+      document.getElementById('time').value = `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+      document.getElementById('tz').value = String(ui.tz);
     }
+    function syncTimeSliders() { writeDateTimeFields(); }
     function snapToNow() {
-      const d = new Date();
-      const start = Date.UTC(d.getUTCFullYear(), 0, 0);
-      ui.doy = Math.max(1, Math.min(365, Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - start) / 86400000)));
-      ui.hour = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600 + d.getUTCMilliseconds() / 3600000;
-      syncTimeSliders();
+      const now = new Date();
+      ui.tz = -now.getTimezoneOffset() / 60;
+      const local = new Date(now.getTime() + ui.tz * 3600000);
+      ui.year = local.getUTCFullYear();
+      ui.month = local.getUTCMonth() + 1;
+      ui.day = local.getUTCDate();
+      ui.hour = local.getUTCHours() + local.getUTCMinutes() / 60 + local.getUTCSeconds() / 3600 + local.getUTCMilliseconds() / 3600000;
+      ui.doy = doyFromYmd(ui.year, ui.month, ui.day);
+      writeDateTimeFields();
     }
     function startRealtime() {
       ui.realtime = true;
@@ -910,18 +1815,261 @@
         : String(h).padStart(3,'0') + '°' + (tag ? ' ' + tag : '') + ' · pole = true N';
     }
 
+    function drawClock() {
+      const h = Math.floor(ui.hour);
+      const m = Math.floor((ui.hour - h) * 60);
+      const s = Math.floor((ui.hour - h - m / 60) * 3600);
+      document.getElementById('clockLocal').textContent =
+        `${ui.year}-${pad2(ui.month)}-${pad2(ui.day)} ${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+      const utc = simDate();
+      document.getElementById('clockMeta').textContent =
+        `UTC ${pad2(utc.getUTCHours())}:${pad2(utc.getUTCMinutes())} · UTC${ui.tz>=0?'+':''}${ui.tz} · ${ui.lat.toFixed(2)}°, ${ui.lon.toFixed(2)}°` +
+        (ui.play ? ' · playing' : ui.realtime ? ' · live' : '');
+    }
+    function lookDir(yaw, pitch) {
+      return new THREE.Vector3(
+        Math.sin(yaw) * Math.cos(pitch),
+        Math.sin(pitch),
+        Math.cos(yaw) * Math.cos(pitch)
+      );
+    }
+    function hitDome(ox, oy, oz, dx, dy, dz) {
+      const Rx = DISK_R, Ry = Math.max(1e-6, ui.H);
+      const A = (dx * dx + dz * dz) / (Rx * Rx) + (dy * dy) / (Ry * Ry);
+      const B = 2 * ((ox * dx + oz * dz) / (Rx * Rx) + (oy * dy) / (Ry * Ry));
+      const C = (ox * ox + oz * oz) / (Rx * Rx) + (oy * oy) / (Ry * Ry) - 1;
+      const disc = B * B - 4 * A * C;
+      if (disc < 0 || Math.abs(A) < 1e-14) return null;
+      const s = Math.sqrt(disc);
+      let t = (-B - s) / (2 * A);
+      if (t < 1e-6) t = (-B + s) / (2 * A);
+      if (t < 1e-6) return null;
+      const y = oy + dy * t;
+      if (y < -1e-4) return null;
+      return { x: ox + dx * t, y, z: oz + dz * t, t };
+    }
+    function hitLat(hit) {
+      if (!hit) return null;
+      return 90 - 90 * Math.hypot(hit.x, hit.z) / R;
+    }
+    function lookHitLat(ox, oy, oz, yaw, pitch) {
+      const d = lookDir(yaw, pitch);
+      return hitLat(hitDome(ox, oy, oz, d.x, d.y, d.z));
+    }
+    function fmtViewLat(lat) {
+      if (lat == null || Number.isNaN(lat)) return '—';
+      const a = Math.abs(lat);
+      if (a < 0.05) return '0°';
+      return `${a.toFixed(0)}° ${lat >= 0 ? 'N' : 'S'}`;
+    }
+    function sampleViewLats(ox, oy, oz, yaw) {
+      const pts = [];
+      const n = 96;
+      for (let i = 0; i <= n; i++) {
+        const pitch = (i / n) * Math.PI / 2;
+        const d = lookDir(yaw, pitch);
+        const hit = hitDome(ox, oy, oz, d.x, d.y, d.z);
+        const lat = hitLat(hit);
+        if (lat == null) continue;
+        pts.push({ pitch, lat, hit });
+      }
+      return pts;
+    }
+    function pitchesForLat(samples, target) {
+      const out = [];
+      for (let i = 1; i < samples.length; i++) {
+        const a = samples[i - 1], b = samples[i];
+        const da = a.lat - target, db = b.lat - target;
+        if (da === 0) out.push(a.pitch);
+        if (da * db < 0) {
+          const t = da / (da - db);
+          out.push(a.pitch + t * (b.pitch - a.pitch));
+        }
+      }
+      return out;
+    }
+    function fmtLon(lon) {
+      if (lon == null || Number.isNaN(lon)) return '—';
+      const L = ((lon + 540) % 360) - 180;
+      const a = Math.abs(L);
+      if (a < 0.05) return '0°';
+      return `${a.toFixed(1)}° ${L >= 0 ? 'E' : 'W'}`;
+    }
+    function drawLadder() {
+      const el = document.getElementById('ladder');
+      const w = innerWidth, h = innerHeight;
+      if (el.width !== w) el.width = w;
+      if (el.height !== h) el.height = h;
+      const ctx = el.getContext('2d');
+      ctx.clearRect(0, 0, w, h);
+      if (ui.view !== 'eye' || (!ui.showHudLat && !ui.showHudAng && !ui.showHudLon)) return;
+      const p = xyFromLatLon(ui.lat, ui.lon);
+      const eyeH = EYE_H;
+      const fov = camera.fov;
+      const pxPerDeg = h / fov;
+      const cx = w / 2, cy = h / 2;
+      ctx.lineWidth = 1.25;
+      ctx.font = '11px "IBM Plex Sans", sans-serif';
+      ctx.textBaseline = 'middle';
+      const toScreenY = (hit) => {
+        if (!hit) return null;
+        const v = new THREE.Vector3(hit.x, hit.y, hit.z).project(camera);
+        if (v.z > 1 || v.z < -1) return null;
+        return (1 - v.y) * 0.5 * h;
+      };
+      const samples = sampleViewLats(p.x, eyeH, p.z, eyeYaw);
+      const centerLat = lookHitLat(p.x, eyeH, p.z, eyeYaw, eyePitch);
+      const d0 = lookDir(eyeYaw, 0);
+      const horizonY = toScreenY(hitDome(p.x, eyeH, p.z, d0.x, d0.y, d0.z));
+      const centerHit = hitDome(p.x, eyeH, p.z, lookDir(eyeYaw, eyePitch).x, lookDir(eyeYaw, eyePitch).y, lookDir(eyeYaw, eyePitch).z);
+      const centerLon = centerHit ? Math.atan2(centerHit.z, centerHit.x) * 180 / Math.PI : ui.lon;
+
+      if (ui.showHudLat) {
+        ctx.strokeStyle = 'rgba(255, 176, 64, 0.9)';
+        ctx.fillStyle = 'rgba(255, 176, 64, 0.9)';
+        for (let deg = -90; deg <= 90; deg += 10) {
+          const pitches = pitchesForLat(samples, deg);
+          const major = deg === 0 || Math.abs(deg) === 90;
+          const label = fmtViewLat(deg);
+          for (const psi of pitches) {
+            const d = lookDir(eyeYaw, psi);
+            const y = toScreenY(hitDome(p.x, eyeH, p.z, d.x, d.y, d.z));
+            if (y == null || y < 28 || y > h - 36) continue;
+            if (horizonY != null && y > horizonY + 6) continue;
+            const half = major ? 56 : 30;
+            ctx.beginPath();
+            ctx.moveTo(cx - half - 48, y);
+            ctx.lineTo(cx - 18, y);
+            ctx.stroke();
+            ctx.textAlign = 'right';
+            ctx.fillText(label, cx - half - 54, y);
+          }
+        }
+      }
+      if (ui.showHudLon) {
+        ctx.strokeStyle = 'rgba(140, 220, 160, 0.9)';
+        ctx.fillStyle = 'rgba(140, 220, 160, 0.9)';
+        const vFov = (camera.fov * Math.PI) / 180;
+        const hFov = 2 * Math.atan(Math.tan(vFov / 2) * (w / Math.max(h, 1)));
+        const short = (from, to) => {
+          let d = to - from;
+          while (d > 180) d -= 360;
+          while (d < -180) d += 360;
+          return d;
+        };
+        const samp = [];
+        const n = 180;
+        for (let i = 0; i <= n; i++) {
+          const yaw = eyeYaw + ((i / n) - 0.5) * hFov * 1.15;
+          const d = lookDir(yaw, eyePitch);
+          const hit = hitDome(p.x, eyeH, p.z, d.x, d.y, d.z);
+          if (!hit) continue;
+          const ndc = new THREE.Vector3(hit.x, hit.y, hit.z).project(camera);
+          if (ndc.z > 1 || ndc.z < -1) continue;
+          const x = (ndc.x + 1) * 0.5 * w;
+          const y = (1 - ndc.y) * 0.5 * h;
+          if (Math.abs(y - cy) > Math.max(18, h * 0.06)) continue;
+          samp.push({ x, lon: Math.atan2(hit.z, hit.x) * 180 / Math.PI });
+        }
+        samp.sort((a, b) => a.x - b.x);
+        const ticks = [];
+        for (let i = 1; i < samp.length; i++) {
+          const a = samp[i - 1], b = samp[i];
+          const span = short(a.lon, b.lon);
+          if (Math.abs(span) > 20) continue;
+          if (Math.abs(b.x - a.x) < 1.5) continue;
+          for (let mer = -180; mer < 180; mer += 15) {
+            const am = short(a.lon, mer);
+            const mb = short(mer, b.lon);
+            if (am * span < -1e-6) continue;
+            if (Math.abs(am) + Math.abs(mb) > Math.abs(span) + 0.8) continue;
+            const u = Math.abs(span) < 1e-9 ? 0 : am / span;
+            if (u < 0 || u > 1) continue;
+            ticks.push({ x: a.x + u * (b.x - a.x), mer });
+          }
+        }
+        ticks.sort((a, b) => a.x - b.x);
+        const kept = [];
+        for (const t of ticks) {
+          if (t.x < 36 || t.x > w - 36) continue;
+          if (kept.length && Math.abs(t.x - kept[kept.length - 1].x) < 52) {
+            const prev = kept[kept.length - 1];
+            const tMajor = t.mer % 30 === 0;
+            const pMajor = prev.mer % 30 === 0;
+            const tCloser = Math.abs(t.x - cx) < Math.abs(prev.x - cx);
+            if ((tMajor && !pMajor) || (tMajor === pMajor && tCloser)) kept[kept.length - 1] = t;
+            continue;
+          }
+          kept.push(t);
+        }
+        for (const t of kept) {
+          const major = t.mer % 30 === 0;
+          ctx.beginPath();
+          ctx.moveTo(t.x, cy - (major ? 11 : 6));
+          ctx.lineTo(t.x, cy + (major ? 11 : 6));
+          ctx.stroke();
+          if (!major) continue;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(fmtLon(t.mer), t.x, cy - 14);
+        }
+      }
+      if (ui.showHudAng) {
+        ctx.strokeStyle = 'rgba(120, 200, 255, 0.9)';
+        ctx.fillStyle = 'rgba(120, 200, 255, 0.9)';
+        const pitchDeg = eyePitch * 180 / Math.PI;
+        for (let deg = 0; deg <= 90; deg += 10) {
+          const y = cy - (deg - pitchDeg) * pxPerDeg;
+          if (y < 28 || y > h - 36) continue;
+          const major = deg === 0 || deg === 90;
+          const half = major ? 56 : 30;
+          ctx.beginPath();
+          ctx.moveTo(cx + 18, y);
+          ctx.lineTo(cx + half + 48, y);
+          ctx.stroke();
+          ctx.textAlign = 'left';
+          ctx.fillText(String(deg) + '°', cx + half + 54, y);
+        }
+      }
+      ctx.strokeStyle = 'rgba(255, 220, 180, 0.9)';
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+      ctx.font = '600 13px "IBM Plex Sans", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      let row = 0;
+      const put = (str, color) => {
+        ctx.fillStyle = color;
+        ctx.fillText(str, cx, cy + 12 + row * 16);
+        row++;
+      };
+      if (ui.showHudLat) put(fmtViewLat(centerLat), 'rgba(255, 176, 64, 0.95)');
+      if (ui.showHudLon) put(fmtLon(centerLon), 'rgba(140, 220, 160, 0.95)');
+      if (ui.showHudAng) put((eyePitch * 180 / Math.PI).toFixed(1) + '° elev', 'rgba(120, 200, 255, 0.95)');
+    }
+
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (ui.realtime) snapToNow();
       else if (ui.play) {
-        ui.hour = (ui.hour + dt * 0.8) % 24;
-        if (ui.hour < dt * 0.8) ui.doy = ui.doy >= 365 ? 1 : ui.doy + 1;
+        ui.hour += dt * 0.8;
+        while (ui.hour >= 24) {
+          ui.hour -= 24;
+          const nxt = new Date(Date.UTC(ui.year, ui.month - 1, ui.day + 1));
+          ui.year = nxt.getUTCFullYear();
+          ui.month = nxt.getUTCMonth() + 1;
+          ui.day = nxt.getUTCDate();
+        }
+        ui.doy = doyFromYmd(ui.year, ui.month, ui.day);
         syncTimeSliders();
       }
+      if (ui.track && ui.trackRa != null) lookAtRaDec(ui.trackRa, ui.trackDec);
       updateDomeScale();
       placeObserver();
-      placeSun();
+      placeBodies();
       updateStarsOnDome();
       updateConstellations();
       findClosest();
@@ -932,22 +2080,60 @@
         const p = xyFromLatLon(ui.lat, ui.lon);
         const eyeH = EYE_H;
         camera.position.set(p.x, eyeH, p.z);
-        const look = new THREE.Vector3(
-          Math.sin(eyeYaw) * Math.cos(eyePitch),
-          Math.sin(eyePitch),
-          Math.cos(eyeYaw) * Math.cos(eyePitch)
-        );
-        camera.lookAt(p.x + look.x, eyeH + look.y, p.z + look.z);
+        // Yaw/pitch camera with a pitch-independent right axis so the
+        // basis stays orthonormal through zenith. The old world-up swap
+        // at |fwd·up| > 0.995 snapped roll around 84–85°.
+        const fwd = lookDir(eyeYaw, eyePitch).normalize();
+        const right = new THREE.Vector3(-Math.cos(eyeYaw), 0, Math.sin(eyeYaw));
+        const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+        const m = new THREE.Matrix4();
+        m.makeBasis(right, up, fwd.clone().negate());
+        camera.quaternion.setFromRotationMatrix(m);
+        camera.up.copy(up);
       }
       drawCompass();
+      drawLadder();
+      drawClock();
 
       renderer.render(scene, camera);
       requestAnimationFrame(frame);
     }
 
     bind();
+    const fromLink = readHash();
+    document.getElementById('lat').value = ui.lat.toFixed(2);
+    document.getElementById('lon').value = ui.lon.toFixed(2);
+    document.getElementById('h').value = ui.H;
+    document.getElementById('fov').value = ui.fov;
+    document.getElementById('mag').value = ui.magLimit;
+    document.getElementById('tz').value = ui.tz;
+    document.getElementById('gnd').value = ui.gnd;
+    document.getElementById('btnHudLat').classList.toggle('on', ui.showHudLat);
+    document.getElementById('btnHudLon').classList.toggle('on', ui.showHudLon);
+    document.getElementById('btnHudAng').classList.toggle('on', ui.showHudAng);
+    document.getElementById('btnTrack').classList.toggle('on', ui.track);
+    document.getElementById('btnSym').classList.toggle('on', ui.planetSym);
+    document.getElementById('btnDay').classList.toggle('on', ui.daySky);
+    const smEl = document.getElementById('sm');
+    if (smEl) {
+      smEl.value = ui.bodyScale;
+      document.getElementById('smV').textContent = ui.bodyScale.toFixed(1) + '×';
+    }
+    document.getElementById('btnDome').classList.toggle('on', ui.showDome);
+    document.getElementById('hV').textContent = ui.H.toFixed(2) + ' R⊕  (' + (ui.H * KM).toFixed(0) + ' km)';
+    document.getElementById('fovV').textContent = Math.round(ui.fov) + '°';
+    document.getElementById('magV').textContent = ui.magLimit.toFixed(1);
+    writeDateTimeFields();
+    if (fromLink && location.hash.includes('date=')) {
+      stopRealtime();
+    } else {
+      startRealtime();
+    }
+    if (ui.view === 'overview') document.getElementById('btnView').click();
+    else applyEyeCam();
     updateDomeScale();
     loadCatalog();
+    controls.enabled = ui.view === 'overview';
     requestAnimationFrame(frame);
   </script>
 </body>
